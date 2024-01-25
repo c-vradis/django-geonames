@@ -13,13 +13,14 @@ from django.db.models import Count
 
 from geonames.models import (Admin1Code, Admin2Code, AlternateName, Country,
                              Currency, GeonamesUpdate, Language, Locality,
-                             Postcode, Timezone)
+                             Postcode, Timezone, FeatureClassAndCode)
 from geonames.models import GIS_LIBRARIES
 
 if GIS_LIBRARIES:
     from django.contrib.gis.geos import Point
 
 FILES = [
+    'https://download.geonames.org/export/dump/featureCodes_en.txt',
     'http://download.geonames.org/export/dump/timeZones.txt',
     'http://download.geonames.org/export/dump/iso-languagecodes.txt',
     'http://download.geonames.org/export/dump/countryInfo.txt',
@@ -81,6 +82,7 @@ class Command(BaseCommand):
 
         self.download_files()
         self.unzip_files()
+        self.load_featurecodes()
         self.load_timezones()
         self.load_languagecodes()
         self.load_countries()
@@ -128,6 +130,24 @@ class Command(BaseCommand):
         except FileNotFoundError:
             print('Files not present')
             pass
+            
+    def load_featurecodes(self):
+        print('Loading feature codes')
+        objects = []
+        os.chdir(self.download_dir)
+        with open('featureCodes_en.txt', 'r', encoding="utf8") as fd:
+            try:
+                fd.readline()
+                for line in fd:
+                    fields = [field.strip() for field in line[:-1].split('\t')]
+                    f_code, name, description = fields[0:2]
+                    objects.append(f_class=f_code[0], f_code=f_code[1:],name_en=name, description_en=description)
+
+            except Exception as inst:
+                traceback.print_exc(inst)
+                raise Exception(f"ERROR parsing:\n {line}\n The error was: {inst}")
+        FeatureClassAndCode.objects.bulk_create(objects)
+        print(f'{FeatureClassAndCode.objects.all().count():8d} FeatureClassAndCode objects loaded')
 
     def load_timezones(self):
         print('Loading Timezones')

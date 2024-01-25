@@ -9,3 +9,6 @@ local_settings.py
 
 # WebDAV file system cache
 .DAV/
+./DS_Store
+.DS_Store
+**/.DS_Store

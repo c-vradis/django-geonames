@@ -511,3 +511,54 @@ class Postcode(models.Model):
 
     def get_absolute_url(self):
         return f'/search?q_key={slugify(self.postal_code).upper()}&q_typ=p'
+
+class FeatureClassAndCode(models.Model):
+    """
+    GeoNames Feature Codes, see https://www.geonames.org/export/codes.html
+    """
+    f_class = models.CharField(
+        blank = True,
+        null = True,
+        max_length = 1,
+        verbose_name = 'feature class',        
+    )
+    f_code = models.CharField(
+        blank = True,
+        null = True,
+        max_length = 10,
+        verbose_name = 'feature code', 
+    )
+    f_class_and_code =  models.CharField(
+        blank = True,
+        null = True,
+        max_length = 11,
+        verbose_name = 'full feature class and code', 
+    )
+    name_en = models.CharField(
+        blank = True,
+        null = True,
+        max_length = 255,
+        verbose_name = 'feature code name', 
+    )
+    description_en = models.CharField(
+        blank = True,
+        null = True,
+        max_length = 255,
+        verbose_name = 'feature code description', 
+    )
+    # TODO:
+    # -[    ] Add name fields for languages bg,nb,nn,no,ru,sv
+    def save(self, *args, **kwargs):
+        self.f_class_and_code = str(self)
+        super(FeatureClassAndCode, self).save(*args, **kwargs)
+    def __str__(self):
+        if self.f_class and self.f_code:
+            return f'{self.f_class}.{self.f_code}'
+        return "null"
+    @property
+    def slug(self):
+        return slugify(str(self))
+    class Meta:
+        ordering = ['f_class', 'f_code',]
+        verbose_name = 'geonames feature code'
+        verbose_name_plural = 'geonames feature codes'
