@@ -12,3 +12,4 @@ local_settings.py
 ./DS_Store
 .DS_Store
 **/.DS_Store
+geonames/management/commands/downloads/

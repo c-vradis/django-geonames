@@ -553,7 +553,7 @@ class FeatureClassAndCode(models.Model):
         super(FeatureClassAndCode, self).save(*args, **kwargs)
     def __str__(self):
         if self.f_class and self.f_code:
-            return f'{self.f_class}.{self.f_code}'
+            return f'{self.name_en}({self.f_class}.{self.f_code})'
         return "null"
     @property
     def slug(self):

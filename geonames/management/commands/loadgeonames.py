@@ -140,8 +140,15 @@ class Command(BaseCommand):
                 fd.readline()
                 for line in fd:
                     fields = [field.strip() for field in line[:-1].split('\t')]
-                    f_code, name, description = fields[0:2]
-                    objects.append(f_class=f_code[0], f_code=f_code[1:],name_en=name, description_en=description)
+                    print(fields)
+                    full_code, name, description = fields[0:3]
+                    if "." in full_code:
+                        f_class = full_code.split(".")[0]
+                        f_code = full_code.split(".")[1]
+                    else:
+                        f_class=None
+                        f_code="null"
+                    objects.append(FeatureClassAndCode(f_class=f_class, f_code=f_code, f_class_and_code=full_code, name_en=name, description_en=description))
 
             except Exception as inst:
                 traceback.print_exc(inst)
