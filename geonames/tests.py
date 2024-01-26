@@ -25,13 +25,13 @@ def create_test_town():
 
 class SimpleTest(TestCase):
     def setUp(self):
-        # Timezones
-        self.tz1 = Timezone.objects.create(name="tz1", gmt_offset=0.0, dst_offset=0.0)
-        self.tz2 = Timezone.objects.create(name="tz2", gmt_offset=2.0, dst_offset=1.0)
+        # Timezones 
+        self.tz1 = Timezone.objects.create(name="tz1", gmt_offset=0.0, dst_offset=0.0, raw_offset=0.0)
+        self.tz2 = Timezone.objects.create(name="tz2", gmt_offset=2.0, dst_offset=1.0, raw_offset=0.0)
 
         # Languages
-        self.language1 = Language.objects.create(name="English", iso_639_1="EN")
-        self.language2 = Language.objects.create(name="Spanish", iso_639_1="ES")
+        self.language1 = Language.objects.create(name="English", iso_639_1="EN", iso_639_2="ENG", iso_639_3="ENG")
+        self.language2 = Language.objects.create(name="Spanish", iso_639_1="ES", iso_639_2="SPA", iso_639_3="SPA",)
 
         # Currencies
         self.currency1 = Currency.objects.create(code="GBP", name="Great Britain Pound")

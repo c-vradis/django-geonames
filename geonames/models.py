@@ -109,9 +109,45 @@ class GeonamesUpdate(models.Model):
     def __str__(self):
         return str(self.update_date)
 
+class Continent(models.Model):
+    objects = BaseManager()
+    status = models.IntegerField(
+        blank=False,
+        default=BaseManager.STATUS_ENABLED,
+        choices=BaseManager.STATUS_CHOICES
+        )
+    code = models.CharField(
+        max_length=2,
+        primary_key=True
+        )
+    name_en = models.CharField(
+        blank = True,
+        null = True,
+        max_length = 255,
+        verbose_name = 'continent name', 
+    )
+    # TODO:
+    # -[    ] Add ForeignKey to Locality?
+    geonameid = models.PositiveIntegerField()
+    def __str__(self):
+        return f"{self.name_en} ({self.code})"
+    class Meta:
+        ordering = ['code',]
+        verbose_name = 'continent'
+        verbose_name_plural = 'continents'
 
 class Timezone(models.Model):
-    """Timezone information"""
+    """
+    Timezone information.
+    Fields in timeZones.txt:
+        CountryCode
+        TimeZoneId
+        GMT offset 1. Jan 2024
+        DST offset 1. Jul 2024
+        rawOffset (independant of DST)
+    """
+    # TODO:
+    # -[    ] Add ForeignKey to Country
     class Meta:
         ordering = ['gmt_offset', 'name']
 
@@ -130,10 +166,18 @@ class Timezone(models.Model):
 
     status = models.IntegerField(blank=False, default=BaseManager.STATUS_ENABLED,
                                  choices=BaseManager.STATUS_CHOICES)
+    country = models.ForeignKey(
+        'Country',
+        null=True,
+        blank=True,
+        to_field='code',
+        on_delete=models.CASCADE,
+        verbose_name='Country code',
+    )                             
     name = models.CharField(max_length=200, primary_key=True)
     gmt_offset = models.DecimalField(max_digits=4, decimal_places=2)
     dst_offset = models.DecimalField(max_digits=4, decimal_places=2)
-
+    raw_offset = models.DecimalField(max_digits=4, decimal_places=2)
 
 class Language(models.Model):
     """Language information"""
@@ -145,15 +189,16 @@ class Language(models.Model):
 
     status = models.IntegerField(blank=False, default=BaseManager.STATUS_ENABLED,
                                  choices=BaseManager.STATUS_CHOICES)
-    name = models.CharField(max_length=200, primary_key=True)
-    iso_639_1 = models.CharField(max_length=50, blank=True)
+    name = models.CharField(max_length=255)
+    iso_639_1 = models.CharField(max_length=2,  blank=True, null=True, verbose_name='ISO 639-1 code')
+    iso_639_2 = models.CharField(max_length=10, blank=True, null=True, verbose_name='ISO 639-2 code')
+    iso_639_3 = models.CharField(max_length=3,  blank=True, null=True, verbose_name='ISO 639-3 code')
 
     objects = BaseManager()
 
     @property
     def code(self):
         return self.iso_639_1
-
 
 class Currency(models.Model):
     """Currency related information"""
@@ -551,7 +596,7 @@ class FeatureClassAndCode(models.Model):
     """
     f_class = models.ForeignKey(
         'FeatureClass', 
-        related_name="has_feature_codes", 
+        related_name="includes_feature_codes", 
         on_delete=models.CASCADE,
         verbose_name = 'feature class',
         to_field='f_class',

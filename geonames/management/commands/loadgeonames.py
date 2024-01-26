@@ -11,7 +11,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.db.models import Count
 
-from geonames.models import (Admin1Code, Admin2Code, AlternateName, Country,
+from geonames.models import (Admin1Code, Admin2Code, AlternateName, Continent, Country,
                              Currency, GeonamesUpdate, Language, Locality,
                              Postcode, Timezone, FeatureClass, FeatureClassAndCode)
 from geonames.models import GIS_LIBRARIES
@@ -35,9 +35,8 @@ FILES = [
 
 # See http://www.geonames.org/export/codes.html
 city_types = ['PPL', 'PPLA', 'PPLC', 'PPLA2', 'PPLA3', 'PPLA4', 'PPLG']
-geo_models = [Timezone, Language, Country, Currency,
+geo_models = [Timezone, Language, Continent, Country, Currency,
               Admin1Code, Admin2Code, Locality, AlternateName, Postcode, FeatureClass, FeatureClassAndCode]
-
 
 class Command(BaseCommand):
     help = "Geonames import command."
@@ -80,20 +79,21 @@ class Command(BaseCommand):
                 print(f'ERROR: there are {member._meta.verbose_name_plural} in the database')
                 sys.exit(1)
 
-        self.download_files()
-        self.unzip_files()
+        #self.download_files()
+        #self.unzip_files()
+        self.load_continents()
         self.load_featureclasses()
         self.load_featurecodes()
         self.load_timezones()
         self.load_languagecodes()
         self.load_countries()
-        self.load_postcodes()
-        self.load_postcodes('GB_full.txt')
-        self.load_admin1()
-        self.load_admin2()
-        self.load_localities()
+        #self.load_postcodes()
+        #self.load_postcodes('GB_full.txt')
+        #self.load_admin1()
+        #self.load_admin2()
+        #self.load_localities()
         self.cleanup()
-        self.load_altnames()
+        #self.load_altnames()
         self.check_errors()
 
         # Save the time when the load happened
@@ -131,24 +131,48 @@ class Command(BaseCommand):
         except FileNotFoundError:
             print('Files not present')
             pass
-    def load_featureclasses(self):
-        print('Adding feature classes')
-        feature_classes = {
-            "A": "country, state, region,...",
-            "H": "stream, lake, ...",
-            "L": "parks,area, ...",
-            "P": "city, village,...",
-            "R": "road, railroad",
-            "S": "spot, building, farm",
-            "T": "mountain,hill,rock,...", 
-            "U": "undersea",
-            "V": "forest,heath,...",
+
+    def load_continents(self):
+        # TODO:
+        # -[    ] Put this dictionary in an external TSV file.
+        # The following info comes from this page: https://download.geonames.org/export/dump/
+        continents = {
+            "AF": { "name_en": "Africa", "geonameId": 6255146},
+            "AS": { "name_en": "Asia", "geonameId": 6255147},
+            "EU": { "name_en": "Europe", "geonameId": 6255148},
+            "NA": { "name_en": "North America", "geonameId": 6255149},
+            "OC": { "name_en": "Oceania", "geonameId": 6255151},
+            "SA": { "name_en": "South America", "geonameId": 6255150},
+            "AN": { "name_en": "Antarctica", "geonameId": 6255152},
         }
         objects = []
-        for f_class,name_en in feature_classes.items():
-            objects.append(FeatureClass(f_class=f_class, name_en=name_en))
+        for code, data in continents.items():
+            objects.append(Continent(code=code, name_en=data["name_en"], geonameid=data["geonameId"]))
+        Continent.objects.bulk_create(objects)
+        print(f'{Continent.objects.all().count():8d} Continent objects created')
+
+    def load_featureclasses(self):
+        print('Adding feature classes')
+        # The name_en field comes from this page: http://www.geonames.org/statistics/united-states.html (same for all countries)
+        # TODO:
+        # -[    ] Put this dictionary in an external TSV file.
+        feature_classes = {
+            "A": {"name_en": "Administrative Boundary Features", "description_en": "country, state, region,..."},
+            "H": {"name_en": "Hydrographic Features", "description_en": "stream, lake, ..."},
+            "L": {"name_en": "Area Features", "description_en": "parks,area, ..."},
+            "P": {"name_en": "Populated Place Features", "description_en": "city, village,..."},
+            "R": {"name_en": "Road / Railroad Features", "description_en": "road, railroad"},
+            "S": {"name_en": "Spot Features", "description_en": "spot, building, farm"},
+            "T": {"name_en": "Hypsographic Features", "description_en": "mountain,hill,rock,..."}, 
+            "U": {"name_en": "Undersea Features", "description_en": "undersea"},
+            "V": {"name_en": "Vegetation Features", "description_en": "forest,heath,..."},
+        }
+        objects = []
+        for f_class, data in feature_classes.items():
+            objects.append(FeatureClass(f_class=f_class, name_en=data["name_en"], description_en=data["description_en"]))
         FeatureClass.objects.bulk_create(objects)
         print(f'{FeatureClass.objects.all().count():8d} FeatureClass objects created')
+
     def load_featurecodes(self):
         print('Loading feature codes')
         objects = []
@@ -158,7 +182,6 @@ class Command(BaseCommand):
                 fd.readline()
                 for line in fd:
                     fields = [field.strip() for field in line[:-1].split('\t')]
-                    print(fields)
                     full_code, name, description = fields[0:3]
                     if full_code != "null":
                         if "." in full_code:
@@ -184,8 +207,8 @@ class Command(BaseCommand):
                 fd.readline()
                 for line in fd:
                     fields = [field.strip() for field in line[:-1].split('\t')]
-                    name, gmt_offset, dst_offset = fields[1:4]
-                    objects.append(Timezone(name=name, gmt_offset=gmt_offset, dst_offset=dst_offset))
+                    name, gmt_offset, dst_offset, raw_offset = fields[1:5]
+                    objects.append(Timezone(name=name, gmt_offset=gmt_offset, dst_offset=dst_offset, raw_offset=raw_offset))
             except Exception as inst:
                 traceback.print_exc(inst)
                 raise Exception(f"ERROR parsing:\n {line}\n The error was: {inst}")
@@ -202,10 +225,15 @@ class Command(BaseCommand):
                 fd.readline()  # skip the head
                 for line in fd:
                     fields = [field.strip() for field in line.split('\t')]
-                    iso_639_1, name = fields[2:4]
-                    if iso_639_1 != '':
-                        objects.append(Language(iso_639_1=iso_639_1,
-                                                name=name))
+                    iso_639_3, iso_639_2, iso_639_1, name = fields[0:4]
+                    #if iso_639_1 != '':
+                    objects.append(
+                        Language(
+                            iso_639_3=iso_639_3,
+                            iso_639_2=iso_639_2,
+                            iso_639_1=iso_639_1,
+                            name=name)
+                            )
             except Exception as inst:
                 traceback.print_exc(inst)
                 raise Exception(f"ERROR parsing:\n {line}\n The error was: {inst}")
@@ -296,8 +324,6 @@ class Command(BaseCommand):
                                           code=admin1_code,
                                           name=name,
                                           country_id=country_code))
-
-
         Admin1Code.objects.bulk_create(objects)
         print(f'{Admin1Code.objects.all().count():8d} Admin1Codes loaded')
 
@@ -342,7 +368,6 @@ class Command(BaseCommand):
             except Exception as inst:
                 traceback.print_exc(inst)
                 raise Exception(f"ERROR parsing:\n {line}\n The error was: {inst}")
-
         Admin2Code.objects.bulk_create(objects, ignore_conflicts=True)
         print(f'{Admin2Code.objects.all().count():8d} Admin2Codes loaded')
         print(f'{skipped_duplicated:8d} Admin2Codes skipped because duplicated')

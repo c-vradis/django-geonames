@@ -1,6 +1,6 @@
 from django.contrib import admin
 from geonames.models import (
-    GeonamesUpdate, Timezone, Language, Currency, Country,
+    GeonamesUpdate, Timezone, Language, Currency, Continent, Country,
     Admin1Code, Admin2Code, Locality, AlternateName, Postcode, FeatureClass, FeatureClassAndCode
 )
 
@@ -35,6 +35,7 @@ admin.site.register(GeonamesUpdate)
 admin.site.register(Timezone)
 admin.site.register(Language)
 admin.site.register(Currency)
+admin.site.register(Continent)
 admin.site.register(Country)
 admin.site.register(Admin1Code)
 admin.site.register(Admin2Code)
