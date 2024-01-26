@@ -13,7 +13,7 @@ from django.db.models import Count
 
 from geonames.models import (Admin1Code, Admin2Code, AlternateName, Country,
                              Currency, GeonamesUpdate, Language, Locality,
-                             Postcode, Timezone, FeatureClassAndCode)
+                             Postcode, Timezone, FeatureClass, FeatureClassAndCode)
 from geonames.models import GIS_LIBRARIES
 
 if GIS_LIBRARIES:
@@ -21,22 +21,22 @@ if GIS_LIBRARIES:
 
 FILES = [
     'https://download.geonames.org/export/dump/featureCodes_en.txt',
-    'http://download.geonames.org/export/dump/timeZones.txt',
-    'http://download.geonames.org/export/dump/iso-languagecodes.txt',
-    'http://download.geonames.org/export/dump/countryInfo.txt',
-    'http://download.geonames.org/export/dump/admin1CodesASCII.txt',
-    'http://download.geonames.org/export/dump/admin2Codes.txt',
-    'http://download.geonames.org/export/dump/cities500.zip',
-    'http://download.geonames.org/export/dump/alternateNames.zip',
+    #'http://download.geonames.org/export/dump/timeZones.txt',
+    #'http://download.geonames.org/export/dump/iso-languagecodes.txt',
+    #'http://download.geonames.org/export/dump/countryInfo.txt',
+    #'http://download.geonames.org/export/dump/admin1CodesASCII.txt',
+    #'http://download.geonames.org/export/dump/admin2Codes.txt',
+    #'http://download.geonames.org/export/dump/cities500.zip',
+    #'http://download.geonames.org/export/dump/alternateNames.zip',
     # postcodes
-    'https://download.geonames.org/export/zip/allCountries.zip',
-    'https://download.geonames.org/export/zip/GB_full.csv.zip',
+    #'https://download.geonames.org/export/zip/allCountries.zip',
+    #'https://download.geonames.org/export/zip/GB_full.csv.zip',
 ]
 
 # See http://www.geonames.org/export/codes.html
 city_types = ['PPL', 'PPLA', 'PPLC', 'PPLA2', 'PPLA3', 'PPLA4', 'PPLG']
 geo_models = [Timezone, Language, Country, Currency,
-              Admin1Code, Admin2Code, Locality, AlternateName, Postcode]
+              Admin1Code, Admin2Code, Locality, AlternateName, Postcode, FeatureClass, FeatureClassAndCode]
 
 
 class Command(BaseCommand):
@@ -82,18 +82,19 @@ class Command(BaseCommand):
 
         self.download_files()
         self.unzip_files()
+        self.load_featureclasses()
         self.load_featurecodes()
-        self.load_timezones()
-        self.load_languagecodes()
-        self.load_countries()
-        self.load_postcodes()
-        self.load_postcodes('GB_full.txt')
-        self.load_admin1()
-        self.load_admin2()
-        self.load_localities()
-        self.cleanup()
-        self.load_altnames()
-        self.check_errors()
+        #self.load_timezones()
+        #self.load_languagecodes()
+        #self.load_countries()
+        #self.load_postcodes()
+        #self.load_postcodes('GB_full.txt')
+        #self.load_admin1()
+        #self.load_admin2()
+        #self.load_localities()
+        #self.cleanup()
+        #self.load_altnames()
+        #self.check_errors()
 
         # Save the time when the load happened
         GeonamesUpdate.objects.create()
@@ -130,7 +131,24 @@ class Command(BaseCommand):
         except FileNotFoundError:
             print('Files not present')
             pass
-            
+    def load_featureclasses(self):
+        print('Adding feature classes')
+        feature_classes = {
+            "A": "country, state, region,...",
+            "H": "stream, lake, ...",
+            "L": "parks,area, ...",
+            "P": "city, village,...",
+            "R": "road, railroad",
+            "S": "spot, building, farm",
+            "T": "mountain,hill,rock,...", 
+            "U": "undersea",
+            "V": "forest,heath,...",
+        }
+        objects = []
+        for f_class,name_en in feature_classes.items():
+            objects.append(FeatureClass(f_class=f_class, name_en=name_en))
+        FeatureClass.objects.bulk_create(objects)
+        print(f'{FeatureClass.objects.all().count():8d} FeatureClass objects created')
     def load_featurecodes(self):
         print('Loading feature codes')
         objects = []
@@ -142,14 +160,15 @@ class Command(BaseCommand):
                     fields = [field.strip() for field in line[:-1].split('\t')]
                     print(fields)
                     full_code, name, description = fields[0:3]
-                    if "." in full_code:
-                        f_class = full_code.split(".")[0]
-                        f_code = full_code.split(".")[1]
-                    else:
-                        f_class=None
-                        f_code="null"
-                    objects.append(FeatureClassAndCode(f_class=f_class, f_code=f_code, f_class_and_code=full_code, name_en=name, description_en=description))
-
+                    if full_code != "null":
+                        if "." in full_code:
+                            f_class = full_code.split(".")[0]
+                            feature_class = FeatureClass.objects.get(f_class=f_class)
+                            f_code = full_code.split(".")[1]
+                        else:
+                            feature_class=None
+                            f_code="null"
+                        objects.append(FeatureClassAndCode(f_class=feature_class, f_code=f_code, f_class_and_code=full_code, name_en=name, description_en=description))
             except Exception as inst:
                 traceback.print_exc(inst)
                 raise Exception(f"ERROR parsing:\n {line}\n The error was: {inst}")

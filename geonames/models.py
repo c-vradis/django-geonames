@@ -512,15 +512,49 @@ class Postcode(models.Model):
     def get_absolute_url(self):
         return f'/search?q_key={slugify(self.postal_code).upper()}&q_typ=p'
 
-class FeatureClassAndCode(models.Model):
+class FeatureClass(models.Model):
     """
-    GeoNames Feature Codes, see https://www.geonames.org/export/codes.html
+    Classes for GeoNames Feature Codes, see https://www.geonames.org/export/codes.html
     """
     f_class = models.CharField(
         blank = True,
         null = True,
         max_length = 1,
-        verbose_name = 'feature class',        
+        verbose_name = 'feature class',
+        unique=True,        
+    )
+    name_en = models.CharField(
+        blank = True,
+        null = True,
+        max_length = 255,
+        verbose_name = 'feature class name', 
+    )
+    description_en = models.CharField(
+        blank = True,
+        null = True,
+        max_length = 255,
+        verbose_name = 'feature class description', 
+    )
+    def __str__(self):
+        return f'{self.f_class} ({self.name_en})'
+    @property
+    def slug(self):
+        return slugify(str(self))
+    class Meta:
+        ordering = ['f_class',]
+        verbose_name = 'geonames feature class'
+        verbose_name_plural = 'geonames feature classes'
+
+class FeatureClassAndCode(models.Model):
+    """
+    GeoNames Feature Codes, see https://www.geonames.org/export/codes.html
+    """
+    f_class = models.ForeignKey(
+        'FeatureClass', 
+        related_name="has_feature_codes", 
+        on_delete=models.CASCADE,
+        verbose_name = 'feature class',
+        to_field='f_class',
     )
     f_code = models.CharField(
         blank = True,
@@ -553,7 +587,7 @@ class FeatureClassAndCode(models.Model):
         super(FeatureClassAndCode, self).save(*args, **kwargs)
     def __str__(self):
         if self.f_class and self.f_code:
-            return f'{self.name_en}({self.f_class}.{self.f_code})'
+            return f'{self.name_en} ({self.f_class}.{self.f_code})'
         return "null"
     @property
     def slug(self):
