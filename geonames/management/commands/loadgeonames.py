@@ -21,16 +21,16 @@ if GIS_LIBRARIES:
 
 FILES = [
     'https://download.geonames.org/export/dump/featureCodes_en.txt',
-    #'http://download.geonames.org/export/dump/timeZones.txt',
-    #'http://download.geonames.org/export/dump/iso-languagecodes.txt',
-    #'http://download.geonames.org/export/dump/countryInfo.txt',
-    #'http://download.geonames.org/export/dump/admin1CodesASCII.txt',
-    #'http://download.geonames.org/export/dump/admin2Codes.txt',
-    #'http://download.geonames.org/export/dump/cities500.zip',
-    #'http://download.geonames.org/export/dump/alternateNames.zip',
+    'http://download.geonames.org/export/dump/timeZones.txt',
+    'http://download.geonames.org/export/dump/iso-languagecodes.txt',
+    'http://download.geonames.org/export/dump/countryInfo.txt',
+    'http://download.geonames.org/export/dump/admin1CodesASCII.txt',
+    'http://download.geonames.org/export/dump/admin2Codes.txt',
+    'http://download.geonames.org/export/dump/cities500.zip',
+    'http://download.geonames.org/export/dump/alternateNames.zip',
     # postcodes
-    #'https://download.geonames.org/export/zip/allCountries.zip',
-    #'https://download.geonames.org/export/zip/GB_full.csv.zip',
+    'https://download.geonames.org/export/zip/allCountries.zip',
+    'https://download.geonames.org/export/zip/GB_full.csv.zip',
 ]
 
 # See http://www.geonames.org/export/codes.html
@@ -84,17 +84,17 @@ class Command(BaseCommand):
         self.unzip_files()
         self.load_featureclasses()
         self.load_featurecodes()
-        #self.load_timezones()
-        #self.load_languagecodes()
-        #self.load_countries()
-        #self.load_postcodes()
-        #self.load_postcodes('GB_full.txt')
-        #self.load_admin1()
-        #self.load_admin2()
-        #self.load_localities()
-        #self.cleanup()
-        #self.load_altnames()
-        #self.check_errors()
+        self.load_timezones()
+        self.load_languagecodes()
+        self.load_countries()
+        self.load_postcodes()
+        self.load_postcodes('GB_full.txt')
+        self.load_admin1()
+        self.load_admin2()
+        self.load_localities()
+        self.cleanup()
+        self.load_altnames()
+        self.check_errors()
 
         # Save the time when the load happened
         GeonamesUpdate.objects.create()
