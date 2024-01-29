@@ -12,7 +12,7 @@ from django.db import transaction
 from django.db.models import Count
 
 from geonames.models import (Admin1Code, Admin2Code, AlternateName, Continent, Country,
-                             Currency, GeonamesUpdate, Language, Locality,
+                             Currency, GeonamesUpdate, Language, Locality, LocalityHierarchy,
                              Postcode, Timezone, FeatureClass, FeatureClassAndCode)
 from geonames.models import GIS_LIBRARIES
 
@@ -21,22 +21,38 @@ if GIS_LIBRARIES:
 
 FILES = [
     'https://download.geonames.org/export/dump/featureCodes_en.txt',
-    'http://download.geonames.org/export/dump/timeZones.txt',
-    'http://download.geonames.org/export/dump/iso-languagecodes.txt',
-    'http://download.geonames.org/export/dump/countryInfo.txt',
-    'http://download.geonames.org/export/dump/admin1CodesASCII.txt',
-    'http://download.geonames.org/export/dump/admin2Codes.txt',
-    'http://download.geonames.org/export/dump/cities500.zip',
-    'http://download.geonames.org/export/dump/alternateNames.zip',
+    'https://download.geonames.org/export/dump/timeZones.txt',
+    'https://download.geonames.org/export/dump/iso-languagecodes.txt',
+    'https://download.geonames.org/export/dump/countryInfo.txt',
+    'https://download.geonames.org/export/dump/admin1CodesASCII.txt',
+    'https://download.geonames.org/export/dump/admin2Codes.txt',
+    'https://download.geonames.org/export/dump/cities500.zip',
+    #'https://download.geonames.org/export/dump/alternateNames.zip',
+    #'https://download.geonames.org/export/dump/alternatenames/CY.zip',
     # postcodes
-    'https://download.geonames.org/export/zip/allCountries.zip',
+    'https://download.geonames.org/export/dump/hierarchy.zip',
+    #'https://download.geonames.org/export/zip/allCountries.zip',
+    #'https://download.geonames.org/export/dump/CY.zip',
     'https://download.geonames.org/export/zip/GB_full.csv.zip',
 ]
 
 # See http://www.geonames.org/export/codes.html
 city_types = ['PPL', 'PPLA', 'PPLC', 'PPLA2', 'PPLA3', 'PPLA4', 'PPLG']
-geo_models = [Timezone, Language, Continent, Country, Currency,
-              Admin1Code, Admin2Code, Locality, AlternateName, Postcode, FeatureClass, FeatureClassAndCode]
+geo_models = [
+    Timezone, 
+    Language, 
+    Continent, 
+    Country, 
+    Currency,
+    Admin1Code, 
+    Admin2Code, 
+    Locality, 
+    LocalityHierarchy, 
+    AlternateName, 
+    Postcode, 
+    FeatureClass, 
+    FeatureClassAndCode
+    ]
 
 class Command(BaseCommand):
     help = "Geonames import command."
@@ -68,7 +84,6 @@ class Command(BaseCommand):
     def load(self, clear=False):
         if clear:
             # self.cleanup_files()
-
             print("Deleting data")
             for member in geo_models:
                 print(f" - {member._meta.verbose_name}")
@@ -77,24 +92,32 @@ class Command(BaseCommand):
         for member in geo_models:
             if member.objects.all().count() != 0:
                 print(f'ERROR: there are {member._meta.verbose_name_plural} in the database')
-                sys.exit(1)
+                #sys.exit(1)
 
         #self.download_files()
         #self.unzip_files()
+
         self.load_continents()
         self.load_featureclasses()
         self.load_featurecodes()
         self.load_timezones()
         self.load_languagecodes()
         self.load_countries()
+        
         #self.load_postcodes()
         #self.load_postcodes('GB_full.txt')
-        #self.load_admin1()
-        #self.load_admin2()
-        #self.load_localities()
-        self.cleanup()
-        #self.load_altnames()
-        self.check_errors()
+
+        self.load_admin1()
+        self.load_admin2()
+        self.load_localities()
+        
+        #self.cleanup()
+
+        self.load_altnames()
+    
+        self.load_hierarchies()
+        
+        #self.check_errors()
 
         # Save the time when the load happened
         GeonamesUpdate.objects.create()
@@ -179,7 +202,7 @@ class Command(BaseCommand):
         os.chdir(self.download_dir)
         with open('featureCodes_en.txt', 'r', encoding="utf8") as fd:
             try:
-                fd.readline()
+                #fd.readline()
                 for line in fd:
                     fields = [field.strip() for field in line[:-1].split('\t')]
                     full_code, name, description = fields[0:3]
@@ -225,7 +248,10 @@ class Command(BaseCommand):
                 fd.readline()  # skip the head
                 for line in fd:
                     fields = [field.strip() for field in line.split('\t')]
-                    iso_639_3, iso_639_2, iso_639_1, name = fields[0:4]
+                    iso_639_3=fields[0]
+                    iso_639_2=fields[1]
+                    iso_639_1=fields[2]
+                    name = fields[3]
                     #if iso_639_1 != '':
                     objects.append(
                         Language(
@@ -240,7 +266,9 @@ class Command(BaseCommand):
 
         Language.objects.bulk_create(objects)
         print(f'{Timezone.objects.all().count():8d} Languages loaded')
-        self.fix_languagecodes()
+        # TODO:
+        # -[    ] Do we really need to "fix" the language names? We could add a shorter name for these cases.
+        #self.fix_languagecodes()
 
     def fix_languagecodes(self):
         print('Fixing Language codes')
@@ -263,6 +291,7 @@ class Command(BaseCommand):
         print('Loading Countries')
         objects = []
         langs_dic = {}
+        neighbours_dict = {}
         dollar = Currency.objects.create(code='USD', name='Dollar')
         os.chdir(self.download_dir)
         with open('countryInfo.txt', encoding="utf8") as fd:
@@ -270,23 +299,56 @@ class Command(BaseCommand):
                 for line in fd:
                     if line[0] == '#':
                         continue
-
                     fields = [field.strip() for field in line[:-1].split('\t')]
                     code = fields[0]
-                    self.countries[code] = {}
+                    code_iso3 = fields[1]
+                    iso_numeric = fields[2]
+                    fips = fields[3]
                     name = fields[4]
+                    capital = fields[5]
+                    area_sq_km = fields[6]
+                    population = fields[7]
+                    continent = Continent.objects.get(code=fields[8]) or None
+                    tld = fields[9]
                     currency_code = fields[10]
                     currency_name = fields[11]
+                    phone = fields[12]
+                    postal_code_format = fields[13]
+                    postal_code_regex = fields[14]
                     langs_dic[code] = fields[15]
+                    geonameid = fields[16]
+                    neighbours_dict[code] = fields[17]
+                    neighbours_codes = fields[17]
+                    equivalent_fips_code = fields[18]
                     if currency_code == '':
                         currency = dollar
                     else:
                         currency, created = Currency.objects.get_or_create(
                                 code=currency_code, defaults={'name': currency_name})
-
-                    objects.append(Country(code=code,
-                                           name=name,
-                                           currency=currency))
+                    self.countries[code] = {}
+                    objects.append(
+                        Country(
+                            code=code,
+                            code_iso3=code_iso3,
+                            iso_numeric=iso_numeric,
+                            fips=fips,
+                            name=name,
+                            capital=capital,
+                            area_sq_km=area_sq_km,
+                            population=population,
+                            continent=continent,
+                            tld=tld,
+                            currency=currency,
+                            currency_code=currency_code,
+                            currency_name=currency_name,
+                            phone=phone,
+                            postal_code_format=postal_code_format,
+                            postal_code_regex=postal_code_regex,
+                            geonameid=geonameid,
+                            neighbours_codes=neighbours_codes,
+                            equivalent_fips_code=equivalent_fips_code
+                        )   
+                    )
             except Exception as inst:
                 traceback.print_exc(inst)
                 raise Exception(f"ERROR parsing:\n {line}\n The error was: {inst}")
@@ -308,6 +370,19 @@ class Command(BaseCommand):
 
             if country.languages.count() == 0:
                 country.languages.add(default_lang)
+        
+        print('Adding neighbours to Countries')
+        for country in Country.objects.all():
+            #print(f"Neighbours for country {country} are {country.neighbours_codes}")
+            for n in country.neighbours_codes.split(','):
+                if n and n != '':
+                    if Country.objects.filter(code=n).exists():
+                        neighbour = Country.objects.get(code=n)
+                        if neighbour:
+                            #print(f"Adding neighbour for country {country}: {n} - {neighbour}")
+                            country.neighbours.add(neighbour)
+                    else:
+                        print(f"Oops, country code {n} not found, skipping.")
 
     def load_admin1(self):
         print('Loading Admin1Codes')
@@ -372,24 +447,41 @@ class Command(BaseCommand):
         print(f'{Admin2Code.objects.all().count():8d} Admin2Codes loaded')
         print(f'{skipped_duplicated:8d} Admin2Codes skipped because duplicated')
 
-    def load_localities(self):
+    def load_localities(self, fn='CY_Localities/CY.txt'):
         print('Loading Localities')
         objects = []
         batch = 10000
         processed = 0
         os.chdir(self.download_dir)
-        with open('cities500.txt', 'r', encoding="utf8") as fd:
+        with open(fn, 'r', encoding="utf8") as fd:
             for line in fd:
+                #print(f'Processing line: ', line)
                 try:
                     fields = [field.strip() for field in line[:-1].split('\t')]
-                    type = fields[7]
-                    if type not in city_types:
-                        continue
-                    population = int(fields[14])
+                    geonameid = fields[0]
+                    name = fields[1]
+                    # ascii_name = fields[2]
+                    # alternate_names = field[3]
+                    lat = float(fields[4])
+                    lon = float(fields[5])
+                    
+                    feature_class = FeatureClass.objects.filter(f_class=fields[6])
+                    if feature_class.exists():
+                        feature_class = feature_class[0]
+                    else:
+                        feature_class = None
+                    feature_code = FeatureClassAndCode.objects.filter(f_class=feature_class, f_code=fields[7])
+                    if feature_code.exists():
+                        feature_code = feature_code[0]
+                    else:
+                        feature_code = None
                     country_code = fields[8]
-                    geonameid, name = fields[:2]
+                    country = Country.objects.filter(code=fields[8])[0]
+                    # alternative_countries = field[9]
                     admin1_code = fields[10]
                     admin2_code = fields[11]
+                    admin3 = fields[12]
+                    admin4 = fields[13]
                     admin1_dic = self.countries[country_code].get(admin1_code)
                     if admin1_dic:
                         admin1_id = admin1_dic['geonameid']
@@ -397,29 +489,44 @@ class Command(BaseCommand):
                     else:
                         admin1_id = None
                         admin2_id = None
+                    #type = fields[7]
+                    #if type not in city_types:
+                    #    continue
+                    population = int(fields[14]) if fields[14] != '' else None
+                    elevation = int(fields[15]) if fields[15] != '' else None
+                    # dem = fields[16]
                     timezone_name = fields[17]
-                    lat = float(fields[4])
-                    lon = float(fields[5])
+                    timezone = Timezone.objects.filter(name=timezone_name)
+                    if timezone.exists():
+                        timezone = timezone[0]
+                    else:
+                        timezone = None
                     modification_date = fields[18]
                     locality = Locality(
                         geonameid=geonameid,
                         name=name,
                         country_id=country_code,
+                        feature_class=feature_class,
+                        feature_code=feature_code,
                         admin1_id=admin1_id,
                         admin2_id=admin2_id,
+                        admin3=admin3,
+                        admin4=admin4,
                         lat=lat,
                         lon=lon,
-                        timezone_id=timezone_name,
+                        timezone=timezone,
                         population=population,
+                        elevation=elevation,
                         modification_date=modification_date
                     )
                     if GIS_LIBRARIES:
-                        locality.point = Point(lat, lon)
+                        locality.point = Point(lon, lat)
                     locality.long_name = locality.generate_long_name()
                     objects.append(locality)
                     processed += 1
                     self.localities.add(geonameid)
                 except Exception as inst:
+                    print(f'Error parsing line: {line}')
                     traceback.print_exc(inst)
                     raise Exception(f"ERROR parsing:\n {line}\n The error was: {inst}")
 
@@ -429,7 +536,8 @@ class Command(BaseCommand):
                     objects = []
 
         Locality.objects.bulk_create(objects)
-        print(f"{processed:8d} Localities loaded")
+        print(f"{processed:8d} Localities lines processed.")
+        print(f"{Locality.objects.count():8d} Localities loaded")
 
         print('Filling missed timezones in localities')
         # Try to find the missing timezones
@@ -456,7 +564,8 @@ class Command(BaseCommand):
                 raise Exception()
 
     def cleanup(self):
-        self.delete_empty_countries()
+        # We do not need this, we need all countries ENABLED
+        # self.delete_empty_countries()
         self.delete_duplicated_localities()
 
     def delete_empty_countries(self):
@@ -484,23 +593,35 @@ class Command(BaseCommand):
 
         print(f" {total:8d} localities set as 'STATUS_DISABLED'")
 
-    def load_altnames(self):
+    def load_altnames(self, fn='CY_Altnames/CY.txt'):
         print('Loading alternate names')
         objects = []
         allobjects = {}
         batch = 10000
         processed = 0
         os.chdir(self.download_dir)
-        with open('alternateNames.txt', 'r', encoding="utf8") as fd:
+        with open(fn, 'r', encoding="utf8") as fd:
             for line in fd:
                 try:
                     fields = [field.strip() for field in line.split('\t')]
                     alternatenameid = fields[0]
                     locality_geonameid = fields[1]
-                    if locality_geonameid not in self.localities:
-                        continue
-
+                    locality_geoname = Locality.objects.filter(geonameid=locality_geonameid)
+                    if locality_geoname.exists():
+                        locality_geoname = locality_geoname[0]
+                    else:
+                        locality_geoname = None
+                    isolanguage = fields[2]
+                    #if locality_geonameid not in self.localities:
+                    #    continue
                     name = fields[3]
+                    is_preferred_name = bool(fields[4])
+                    is_short_name = bool(fields[5])
+                    is_colloquial = bool(fields[6])
+                    is_historic = bool(fields[7])
+                    from_period = fields[8]
+                    to_period = fields[9]
+                    """
                     if locality_geonameid in allobjects:
                         if name in allobjects[locality_geonameid]:
                             continue
@@ -508,11 +629,24 @@ class Command(BaseCommand):
                         allobjects[locality_geonameid] = set()
 
                     allobjects[locality_geonameid].add(name)
-                    objects.append(AlternateName(alternatenameid=alternatenameid,
-                                                 locality_id=locality_geonameid,
-                                                 name=name))
+                    """
+                    objects.append(
+                        AlternateName(
+                            alternatenameid=alternatenameid,
+                            locality=locality_geoname,
+                            isolanguage=isolanguage,
+                            name=name,
+                            is_preferred_name=is_preferred_name,
+                            is_short_name=is_short_name,
+                            is_colloquial=is_colloquial,
+                            is_historic=is_historic,
+                            from_period=from_period,
+                            to_period=to_period,
+                        )
+                    )
                     processed += 1
                 except Exception as inst:
+                    print(f'Error parsing line: {line}')
                     traceback.print_exc(inst)
                     raise Exception(f"ERROR parsing:\n {line}\n The error was: {inst}")
 
@@ -523,6 +657,44 @@ class Command(BaseCommand):
 
         AlternateName.objects.bulk_create(objects, ignore_conflicts=True)
         print(f"{processed:8d} AlternateNames loaded")
+
+    def load_hierarchies(self, fn='hierarchy.txt'):
+        print('Loading hierarchies')
+        objects = []
+        allobjects = {}
+        batch = 1000
+        processed = 0
+        os.chdir(self.download_dir)
+        with open(fn, 'r', encoding="utf8") as fd:
+            for line in fd:
+                try:
+                    fields = [field.strip() for field in line.split('\t')]
+                    parent = Locality.objects.filter(geonameid=int(fields[0]))
+                    child = Locality.objects.filter(geonameid=int(fields[1]))
+                    if parent.exists() and child.exists():
+                        parent=parent[0]
+                        child=child[0]
+                        hierarchy_type = fields[2]
+                        objects.append(
+                            LocalityHierarchy(
+                                parent=parent,
+                                child=child,
+                                hierarchy_type=hierarchy_type,
+                            )
+                        )
+                    processed += 1
+                except Exception as inst:
+                    print(f'Error parsing line: {line}')
+                    traceback.print_exc(inst)
+                    raise Exception(f"ERROR parsing:\n {line}\n The error was: {inst}")
+
+                if processed % batch == 0:
+                    LocalityHierarchy.objects.bulk_create(objects, ignore_conflicts=True)
+                    print(f"{processed:8d} LocalityHierarchy loaded")
+                    objects = []
+
+        LocalityHierarchy.objects.bulk_create(objects, ignore_conflicts=True)
+        print(f"{processed:8d} LocalityHierarchy loaded")
 
     def load_postcodes(self, fn='allCountries.txt'):
         """Load postcode files: allCountries.txt and GB_full.txt"""
@@ -561,7 +733,7 @@ class Command(BaseCommand):
                     accuracy=accuracy or None
                 )
                 if GIS_LIBRARIES:
-                    postcode.point = Point(lat, lon)
+                    postcode.point = Point(lon, lat)
                 objects.append(postcode)
                 processed += 1
 
@@ -575,13 +747,13 @@ class Command(BaseCommand):
 
         print('Checking empty country')
         if Country.objects.public().annotate(Count("locality_set")).filter(locality_set__count=0):
-            print("ERROR Countries with no locality_set")
-            raise Exception()
+            print("Possible error: there are Countries with no localities")
+            #raise Exception()
 
-        print('Checking all Localities with timezone')
+        print('Checking if Localities have a timezone')
         if Locality.objects.filter(timezone__isnull=True):
             print("ERROR Localities with no timezone")
-            raise Exception()
+            #raise Exception()
 
         print('Checking duplicated localities per country')
         for country in Country.objects.all():

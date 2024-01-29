@@ -5,6 +5,7 @@ from django.conf import settings
 from django.db import models
 from django.db.models import Q
 from django.template.defaultfilters import slugify
+from django.utils.translation import gettext_lazy as _
 
 from geonames.admin2_stopwords import trim_stopwords, admin2_stopwords
 
@@ -15,7 +16,6 @@ if GIS_LIBRARIES:
     from django.contrib.gis.measure import D
 
 EARTH_R = 3959
-
 
 class GeoManager(models.Manager):
     def area(self, min_latlon, max_latlon):
@@ -69,7 +69,7 @@ class BaseManager(GeoManager):
     """
     Additional methods / constants to Base's objects manager - using a GeoManager is fine even for plain models:
 
-    ``BaseManager.objects.public()`` - all instances that are asccessible through front end
+    ``BaseManager.objects.public()`` - all instances that are accessible through front end
     """
     # Model (db table) wide constants - we put these and not in model definition to avoid circular imports.
     # one can access these constants through <foo>.objects.STATUS_DISABLED or ImageManager.STATUS_DISABLED
@@ -95,12 +95,10 @@ class BaseManager(GeoManager):
         """Returns all entries that are considered active, i.e. available in forms, selections, choices, etc"""
         return self.filter(**self.QUERYSET_ACTIVE_KWARGS)
 
-
 # Some constants for the geo maths
 EARTH_RADIUS_MI = 3959.0
 KM_TO_MI = 0.621371192
 DEGREES_TO_RADIANS = pi / 180.0
-
 
 class GeonamesUpdate(models.Model):
     """Log the geonames updates"""
@@ -185,7 +183,7 @@ class Language(models.Model):
         ordering = ['name']
 
     def __str__(self):
-        return f"({self.code}) {self.name}"
+        return f"{self.name} ({self.code})"
 
     status = models.IntegerField(blank=False, default=BaseManager.STATUS_ENABLED,
                                  choices=BaseManager.STATUS_CHOICES)
@@ -198,7 +196,7 @@ class Language(models.Model):
 
     @property
     def code(self):
-        return self.iso_639_1
+        return self.iso_639_1 or self.iso_639_2 or self.iso_639_3
 
 class Currency(models.Model):
     """Currency related information"""
@@ -219,7 +217,30 @@ class Currency(models.Model):
 
 
 class Country(models.Model):
-    """Country information"""
+    """
+    Country information
+    Fields from https://download.geonames.org/export/dump/countryInfo.txt:
+        ISO	
+        ISO3
+        ISO-Numeric
+        fips
+        Country	Capital
+        Area(in sq km)
+        Population
+        Continent
+        tld
+        CurrencyCode
+        CurrencyName
+        Phone
+        Postal Code Format
+        Postal Code Regex
+        Languages
+        geonameid
+        neighbours
+        EquivalentFipsCode
+    """
+    # TODO
+    # -[    ] Add field simplified_boundary with Geometry type (so it can accommodate a Polygon or MultiPolygon geometry)
     class Meta:
         ordering = ['name']
         verbose_name_plural = 'Countries'
@@ -238,11 +259,117 @@ class Country(models.Model):
 
     status = models.IntegerField(blank=False, default=BaseManager.STATUS_ENABLED,
                                  choices=BaseManager.STATUS_CHOICES)
-    code = models.CharField(max_length=2, primary_key=True)
+    code = models.CharField(max_length=2, primary_key=True, verbose_name='ISO code')
     name = models.CharField(max_length=200, unique=True, db_index=True)
     languages = models.ManyToManyField(Language, related_name="country_set")
     currency = models.ForeignKey(Currency, related_name="country_set", on_delete=models.CASCADE)
-
+    code_iso3 = models.CharField(
+        max_length=3,
+        null=True,
+        blank=True,
+        verbose_name=_('ISO 3 code'),
+        )
+    iso_numeric = models.CharField(
+        max_length=3,
+        null=True,
+        blank=True,
+        verbose_name=_('ISO Numeric code'),
+        )
+    fips = models.CharField(
+        max_length=2,
+        null=True,
+        blank=True,
+        verbose_name=_('FIPS code'),
+        )
+    # TODO:
+    # Add ForeignKey?
+    capital = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        verbose_name=_('Country capital'),
+        )
+    area_sq_km = models.FloatField(
+        null=True,
+        blank=True,
+        verbose_name=_('Area in square kilometers'),
+        )
+    population = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        verbose_name=_('Population'),
+        )
+    continent = models.ForeignKey(
+        'Continent',
+        to_field='code',
+        on_delete = models.SET_NULL,
+        null=True,
+        blank=True,
+        verbose_name=_('Continent'),
+        )
+    tld = models.CharField(
+        max_length=3,
+        null=True,
+        blank=True,
+        verbose_name=_('Top-level domain'),
+        )
+    # TODO:
+    # Add ForeignKey?
+    currency_code = models.CharField(
+        max_length=3,
+        null=True,
+        blank=True,
+        verbose_name=_('Currency code'),
+        )
+    currency_name = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        verbose_name=_('Currency name'),
+        )
+    phone  = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        verbose_name=_('Phone code'),
+        )
+    postal_code_format  = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        verbose_name=_('Postal code format'),
+        )
+    postal_code_regex  = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        verbose_name=_('Postal code regular expression (regex)'),
+        )
+    geonameid = models.CharField(
+        max_length=10,
+        null=True,
+        blank=True,
+        verbose_name=_('Geonames ID'),
+        )
+    neighbours = models.ManyToManyField(
+        'self',
+        blank = True,
+        verbose_name = _('neighbours'),
+        symmetrical = True,
+        db_index = True,
+        )
+    neighbours_codes = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        verbose_name=_('neighbours codes'),
+        )
+    equivalent_fips_code = models.CharField(
+        max_length=255,
+        null=True,
+        blank=True,
+        verbose_name=_('Equivalent FIPS code'),
+        )
 
 class Admin1Code(models.Model):
     """Administrative subdivision"""
@@ -371,7 +498,9 @@ def calc_dist_nogis(la1, lo1, la2, lo2):
 
 
 class Locality(models.Model):
-    """Localities - cities, towns, villages, etc"""
+    """
+    Geonames Localities
+    """
     class Meta:
         # unique_together = ('country', 'admin1', 'admin2', 'slug')
         ordering = ['country', 'admin1', 'admin2', 'long_name']
@@ -483,19 +612,63 @@ class Locality(models.Model):
                                  choices=BaseManager.STATUS_CHOICES)
     geonameid = models.PositiveIntegerField(primary_key=True)
     name = models.CharField(max_length=200, db_index=True)
+    name_ascii = models.CharField(max_length=200, db_index=True)
+    feature_class = models.ForeignKey(
+        'FeatureClass',
+        to_field='f_class',
+        null=True,
+        blank=True,
+        on_delete = models.SET_NULL,
+        verbose_name= _('feature class')
+    )
+    feature_code = models.ForeignKey(
+        'FeatureClassAndCode',
+        to_field='f_code',
+        null=True,
+        blank=True,
+        on_delete = models.SET_NULL,
+        verbose_name= _('feature code')
+    )
     long_name = models.CharField(max_length=200)
-    country = models.ForeignKey(Country, related_name="locality_set", on_delete=models.CASCADE)
+    country = models.ForeignKey(
+        'Country', 
+        related_name="locality_set", 
+        on_delete=models.CASCADE
+        )
+    alt_country = models.ManyToManyField(
+        'Country',
+        blank=True,
+        related_name="locality_alt_set", 
+        verbose_name=('alternate country codes')
+    )
     admin1 = models.ForeignKey(Admin1Code, null=True, blank=True, related_name="locality_set", on_delete=models.CASCADE)
     admin2 = models.ForeignKey(Admin2Code, null=True, blank=True, related_name="locality_set", on_delete=models.CASCADE)
+    admin3 = models.CharField(null=True, blank=True, max_length=20, verbose_name=_('code for third level administrative division'))
+    admin4 = models.CharField(null=True, blank=True, max_length=20, verbose_name=_('code for fourth level administrative division'))
     timezone = models.ForeignKey(Timezone, related_name="locality_set", null=True, on_delete=models.CASCADE)
-    population = models.PositiveIntegerField()
+    population = models.PositiveIntegerField(
+        null = True,
+        blank = True,
+        verbose_name = _('population')
+    )
+    elevation = models.IntegerField(
+        null = True,
+        blank = True,
+        verbose_name = _('elevation in meters')
+    )
     lat = models.DecimalField(max_digits=9, decimal_places=6, null=True)
     lon = models.DecimalField(max_digits=9, decimal_places=6, null=True)
     if GIS_LIBRARIES:
         point = models.PointField(geography=False, srid=4326)
     modification_date = models.DateField()
     slug = models.CharField(max_length=35, db_index=True, blank=True, null=True)
-
+    children = models.ManyToManyField(
+        'self',
+        symmetrical = False,
+        through = 'LocalityHierarchy',
+        blank = True,
+        through_fields=('parent', 'child'),  
+    )
 
 class AlternateName(models.Model):
     """Other names for localities for example in different languages etc."""
@@ -511,10 +684,48 @@ class AlternateName(models.Model):
     alternatenameid = models.PositiveIntegerField(primary_key=True)
     locality = models.ForeignKey(Locality, related_name="alternatename_set", on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
-    # TODO include localization code
-
+    # TODO
+    # -[    ] Add ForeignKey to Language if an ISO code is provided. Alternatively, create a Locale class and add a ForeignKey.
+    isolanguage = models.CharField(
+        max_length = 10,
+        null = True,
+        blank = True,
+        verbose_name = _('ISO 639 language code (or other, see below'),
+        help_text = _('iso 639 language code 2- or 3-characters, optionally followed by a hyphen and a countrycode for country specific variants (ex:zh-CN) or by a variant name (ex: zh-Hant); 4-characters "post" for postal codes and "iata","icao" and "faac" for airport codes, fr_1793 for French Revolution names,  abbr for abbreviation, link to a website (mostly to wikipedia), wkdt for the wikidataid')
+    )
+    is_preferred_name = models.BooleanField(
+        null = True,
+        verbose_name = _('is preferred name?',),
+        help_text = _('is this alternate name is an official/preferred name?'),
+    )
+    is_short_name = models.BooleanField(
+        null = True,
+        verbose_name = _('is short name?',),
+        help_text = _('is this is a short name like California for State of California?'),
+    )
+    is_colloquial = models.BooleanField(
+        null = True,
+        verbose_name = _('is preferred name?',),
+        help_text = _('is this alternate name a colloquial or slang term? Example: Big Apple for New York.'),
+    )
+    is_historic = models.BooleanField(
+        null = True,
+        verbose_name = _('is historic name?',),
+        help_text = _('is this alternate name historic and was used in the past? Example Bombay for Mumbai'),
+    )
+    from_period = models.CharField(
+        max_length = 100,
+        null = True,
+        blank = True,
+        verbose_name = _('from period when the name was used'),
+    )
+    to_period = models.CharField(
+        max_length = 10,
+        null = True,
+        blank = True,
+        verbose_name = _('to period when the name was used'),
+    )
     objects = BaseManager()
-
 
 class Postcode(models.Model):
     """Postcodes"""
@@ -606,6 +817,7 @@ class FeatureClassAndCode(models.Model):
         null = True,
         max_length = 10,
         verbose_name = 'feature code', 
+        unique = True
     )
     f_class_and_code =  models.CharField(
         blank = True,
@@ -641,3 +853,29 @@ class FeatureClassAndCode(models.Model):
         ordering = ['f_class', 'f_code',]
         verbose_name = 'geonames feature code'
         verbose_name_plural = 'geonames feature codes'
+
+class LocalityHierarchy(models.Model):
+    parent = models.ForeignKey(
+        'Locality',
+        related_name = 'is_parent_of',
+        on_delete = models.CASCADE
+    )    
+    child = models.ForeignKey(
+        'Locality',
+        related_name = 'has_child',
+        on_delete = models.CASCADE,
+    )
+    hierarchy_type = models.CharField(
+        max_length = 255,
+        blank = True,
+        null = True,
+        verbose_name = _('hierarchy type')
+    )
+    class Meta:
+        #ordering = ['parent',] #'child',]
+        unique_together = ['parent', 'child', 'hierarchy_type']
+        verbose_name = 'geonames hierarchy'
+        verbose_name_plural = 'geonames hierarchies'
+
+# TODO:
+# -[    ] Add class ExternalLink for Wikipedia and Wikidata URLs that exist in AlternateName
