@@ -246,7 +246,7 @@ class Country(models.Model):
         verbose_name_plural = 'Countries'
 
     def __str__(self):
-        return f'({self.code}) {self.name}'
+        return f'{self.name}'
 
     def search_locality(self, locality_name):
         if len(locality_name) == 0:
@@ -378,7 +378,8 @@ class Admin1Code(models.Model):
         ordering = ['country', 'name']
 
     def __str__(self):
-        return f'{self.country.name} > {self.name}'
+        #return f'{self.country.name} > {self.name}'
+        return f'{self.name}'
 
     def save(self, *args, **kwargs):
         # Call the "real" save() method.
@@ -405,10 +406,13 @@ class Admin2Code(models.Model):
         ordering = ['country', 'admin1', 'name']
 
     def __str__(self):
+        """
         admin1_name = ''
         if self.admin1:
             admin1_name = f'{self.admin1.name} > '
         return f'{self.country.name} > {admin1_name}{self.name}'
+        """
+        return f'{self.name}'
 
     def get_absolute_url(self, segment=''):
         url = f'/{self.slug}/'
@@ -507,13 +511,15 @@ class Locality(models.Model):
         verbose_name_plural = 'Localities'
 
     def __str__(self):
+        return f'{self.name}'
+        """
         admin1_name, admin2_name = '', ''
         if self.admin1:
             admin1_name = f'{self.admin1.name} > '
         if self.admin2:
             admin2_name = f'{self.admin2.name} > '
         return f'{self.country.name} > {admin1_name}{admin2_name}{self.name}'
-
+        """
     def get_absolute_url(self, segment='', admin2_slug=None):
         url = f'/{self.slug}'
         if self.admin2:
@@ -674,10 +680,13 @@ class AlternateName(models.Model):
     """Other names for localities for example in different languages etc."""
     class Meta:
         # unique_together = (("locality", "name"),)  # doesn't work on MySQL due to index encoding?
-        ordering = ['locality__pk', 'name']
+        ordering = ['name']
+        verbose_name = _('alternate name')
+        verbose_name_plural = _('alternate name')
 
     def __str__(self):
-        return f'{self.locality.name} ({self.locality.country.code}) = {self.name}'
+        #return f'{self.locality.name} ({self.locality.country.code}) = {self.name}'
+        return f'{self.name}'
 
     status = models.IntegerField(blank=False, default=BaseManager.STATUS_ENABLED,
                                  choices=BaseManager.STATUS_CHOICES)
@@ -792,7 +801,7 @@ class FeatureClass(models.Model):
         verbose_name = 'feature class description', 
     )
     def __str__(self):
-        return f'{self.f_class} ({self.name_en})'
+        return f'{self.name_en} ({self.f_class})'
     @property
     def slug(self):
         return slugify(str(self))
@@ -844,7 +853,7 @@ class FeatureClassAndCode(models.Model):
         super(FeatureClassAndCode, self).save(*args, **kwargs)
     def __str__(self):
         if self.f_class and self.f_code:
-            return f'{self.name_en} ({self.f_class}.{self.f_code})'
+            return f'{self.name_en} ({self.f_class.f_class}.{self.f_code})'
         return "null"
     @property
     def slug(self):
@@ -879,3 +888,55 @@ class LocalityHierarchy(models.Model):
 
 # TODO:
 # -[    ] Add class ExternalLink for Wikipedia and Wikidata URLs that exist in AlternateName
+
+class AlternateNameAsLinkManager(models.Manager):
+    def get_queryset(self, *args, **kwargs):
+        return super().get_queryset(*args, **kwargs).filter(isolanguage__exact='link')
+class AlternateNameAsLink(AlternateName):
+    objects = AlternateNameAsLinkManager()
+    class Meta:
+        proxy = True
+        verbose_name = _('alternate name - external link')
+        verbose_name_plural = _('alternate name - external links')
+
+class AlternateNameAsLAUCManager(models.Manager):
+    def get_queryset(self, *args, **kwargs):
+        return super().get_queryset(*args, **kwargs).filter(isolanguage__exact='lauc')
+class AlternateNameAsLAUC(AlternateName):
+    objects = AlternateNameAsLAUCManager()
+    class Meta:
+        proxy = True
+        verbose_name = _('alternate name - LAUC')
+        verbose_name_plural = _('alternate names - LAUC')
+
+class AlternateNameAsWikidataEntityIDManager(models.Manager):
+    def get_queryset(self, *args, **kwargs):
+        return super().get_queryset(*args, **kwargs).filter(isolanguage__exact='wkdt')
+class AlternateNameAsWikidataEntityID(AlternateName):
+    objects = AlternateNameAsWikidataEntityIDManager()
+    def __str__(self):
+        return f'http://www.wikidata.org/entity/{self.name}'
+    class Meta:
+        proxy = True
+        verbose_name = _('alternate name - Wikidata ID')
+        verbose_name_plural = _('alternate names - Wikidata ID')
+
+class AlternateNameAsUNLCManager(models.Manager):
+    def get_queryset(self, *args, **kwargs):
+        return super().get_queryset(*args, **kwargs).filter(isolanguage__exact='unlc')
+class AlternateNameAsUNLC(AlternateName):
+    objects = AlternateNameAsUNLCManager()
+    class Meta:
+        proxy = True
+        verbose_name = _('alternate name - UNLC')
+        verbose_name_plural = _('alternate names - UNLC')
+
+class AlternateNameAsNUTSManager(models.Manager):
+    def get_queryset(self, *args, **kwargs):
+        return super().get_queryset(*args, **kwargs).filter(isolanguage__exact='nuts')
+class AlternateNameAsNUTS(AlternateName):
+    objects = AlternateNameAsNUTSManager()
+    class Meta:
+        proxy = True
+        verbose_name = _('alternate name - NUTS')
+        verbose_name_plural = _('alternate names - NUTS')
