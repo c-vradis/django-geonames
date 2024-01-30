@@ -62,6 +62,7 @@ class Command(BaseCommand):
         download_dir = os.path.join(tempfile.gettempdir(), 'django-geonames-downloads')
 
     countries = {}
+    continents = {}
     localities = set()
 
     def add_arguments(self, parser):
@@ -157,8 +158,7 @@ class Command(BaseCommand):
 
     def load_continents(self):
         # TODO:
-        # -[    ] Put this dictionary in an external TSV file.
-        # The following info comes from this page: https://download.geonames.org/export/dump/
+        # -[    ] Put this dictionary in an external TSV file. The info comes from this page: https://download.geonames.org/export/dump/
         continents = {
             "AF": { "name_en": "Africa", "geonameId": 6255146},
             "AS": { "name_en": "Asia", "geonameId": 6255147},
@@ -209,12 +209,20 @@ class Command(BaseCommand):
                     if full_code != "null":
                         if "." in full_code:
                             f_class = full_code.split(".")[0]
-                            feature_class = FeatureClass.objects.get(f_class=f_class)
+                            #feature_class = FeatureClass.objects.get(f_class=f_class)
                             f_code = full_code.split(".")[1]
                         else:
-                            feature_class=None
-                            f_code="null"
-                        objects.append(FeatureClassAndCode(f_class=feature_class, f_code=f_code, f_class_and_code=full_code, name_en=name, description_en=description))
+                            #feature_class=None
+                            f_code=None
+                        objects.append(
+                            FeatureClassAndCode(
+                                f_class_id=f_class, 
+                                f_code=f_code, 
+                                f_class_and_code=full_code, 
+                                name_en=name, 
+                                description_en=description
+                            )
+                        )
             except Exception as inst:
                 traceback.print_exc(inst)
                 raise Exception(f"ERROR parsing:\n {line}\n The error was: {inst}")
@@ -308,7 +316,7 @@ class Command(BaseCommand):
                     capital = fields[5]
                     area_sq_km = fields[6]
                     population = fields[7]
-                    continent = Continent.objects.get(code=fields[8]) or None
+                    continent = fields[8] #Continent.objects.get(code=fields[8]) or None
                     tld = fields[9]
                     currency_code = fields[10]
                     currency_name = fields[11]
@@ -336,7 +344,7 @@ class Command(BaseCommand):
                             capital=capital,
                             area_sq_km=area_sq_km,
                             population=population,
-                            continent=continent,
+                            continent_id=continent,
                             tld=tld,
                             currency=currency,
                             currency_code=currency_code,
@@ -395,10 +403,14 @@ class Command(BaseCommand):
                 country_code, admin1_code = codes.split('.')
                 geonameid = fields[3]
                 self.countries[country_code][admin1_code] = {'geonameid': geonameid, 'admins2': {}}
-                objects.append(Admin1Code(geonameid=geonameid,
-                                          code=admin1_code,
-                                          name=name,
-                                          country_id=country_code))
+                objects.append(
+                    Admin1Code(
+                        geonameid=geonameid,
+                        code=admin1_code,
+                        name=name,
+                        country_id=country_code
+                    )
+                )
         Admin1Code.objects.bulk_create(objects)
         print(f'{Admin1Code.objects.all().count():8d} Admin1Codes loaded')
 
@@ -435,11 +447,15 @@ class Command(BaseCommand):
                         admin1_dic['admins2'][admin2_code] = geonameid
 
                     name = name  # unicode(name, 'utf-8')
-                    objects.append(Admin2Code(geonameid=geonameid,
-                                              code=admin2_code,
-                                              name=name,
-                                              country_id=country_code,
-                                              admin1_id=admin1_id))
+                    objects.append(
+                        Admin2Code(
+                            geonameid=geonameid,
+                            code=admin2_code,
+                            name=name,
+                            country_id=country_code,
+                            admin1_id=admin1_id
+                        )
+                    )
             except Exception as inst:
                 traceback.print_exc(inst)
                 raise Exception(f"ERROR parsing:\n {line}\n The error was: {inst}")
@@ -450,7 +466,7 @@ class Command(BaseCommand):
     def load_localities(self, fn='CY_Localities/CY.txt'):
         print('Loading Localities')
         objects = []
-        batch = 10000
+        batch = 1000
         processed = 0
         os.chdir(self.download_dir)
         with open(fn, 'r', encoding="utf8") as fd:
@@ -465,18 +481,22 @@ class Command(BaseCommand):
                     lat = float(fields[4])
                     lon = float(fields[5])
                     
-                    feature_class = FeatureClass.objects.filter(f_class=fields[6])
+                    feature_class = fields[6] #FeatureClass.objects.filter(f_class=fields[6])
+                    """
                     if feature_class.exists():
                         feature_class = feature_class[0]
                     else:
                         feature_class = None
-                    feature_code = FeatureClassAndCode.objects.filter(f_class=feature_class, f_code=fields[7])
+                    """
+                    feature_code = fields[7] #FeatureClassAndCode.objects.filter(f_class=feature_class, f_code=fields[7])
+                    """
                     if feature_code.exists():
                         feature_code = feature_code[0]
                     else:
                         feature_code = None
+                    """
                     country_code = fields[8]
-                    country = Country.objects.filter(code=fields[8])[0]
+                    #country = Country.objects.filter(code=fields[8])[0]
                     # alternative_countries = field[9]
                     admin1_code = fields[10]
                     admin2_code = fields[11]
@@ -505,9 +525,9 @@ class Command(BaseCommand):
                     locality = Locality(
                         geonameid=geonameid,
                         name=name,
-                        country_id=country_code,
-                        feature_class=feature_class,
-                        feature_code=feature_code,
+                        country_id=country_code if country_code != '' else None,
+                        feature_class_id=feature_class if feature_class != '' else None,
+                        feature_code_id=feature_code if feature_code != '' else None,
                         admin1_id=admin1_id,
                         admin2_id=admin2_id,
                         admin3=admin3,
@@ -597,7 +617,7 @@ class Command(BaseCommand):
         print('Loading alternate names')
         objects = []
         allobjects = {}
-        batch = 10000
+        batch = 1000
         processed = 0
         os.chdir(self.download_dir)
         with open(fn, 'r', encoding="utf8") as fd:
@@ -606,11 +626,13 @@ class Command(BaseCommand):
                     fields = [field.strip() for field in line.split('\t')]
                     alternatenameid = fields[0]
                     locality_geonameid = fields[1]
+                    """
                     locality_geoname = Locality.objects.filter(geonameid=locality_geonameid)
                     if locality_geoname.exists():
                         locality_geoname = locality_geoname[0]
                     else:
                         locality_geoname = None
+                    """
                     isolanguage = fields[2]
                     #if locality_geonameid not in self.localities:
                     #    continue
@@ -633,7 +655,7 @@ class Command(BaseCommand):
                     objects.append(
                         AlternateName(
                             alternatenameid=alternatenameid,
-                            locality=locality_geoname,
+                            locality_id=locality_geonameid,
                             isolanguage=isolanguage,
                             name=name,
                             is_preferred_name=is_preferred_name,
@@ -700,7 +722,7 @@ class Command(BaseCommand):
         """Load postcode files: allCountries.txt and GB_full.txt"""
         print(f"Loading postcodes from {fn}.")
         objects = []
-        batch = 20000
+        batch = 1000
         processed = 0
         os.chdir(self.download_dir)
 

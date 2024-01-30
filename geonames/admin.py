@@ -18,7 +18,6 @@ class AlternateNameAdmin(admin.ModelAdmin):
     search_fields = ['name']
     raw_id_fields = ['locality']
 
-
 class Admin1CodeAdmin(admin.ModelAdmin):
     search_fields = ['name']
     raw_id_fields = ['locality']

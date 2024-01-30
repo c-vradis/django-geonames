@@ -682,7 +682,7 @@ class AlternateName(models.Model):
         # unique_together = (("locality", "name"),)  # doesn't work on MySQL due to index encoding?
         ordering = ['name']
         verbose_name = _('alternate name')
-        verbose_name_plural = _('alternate name')
+        verbose_name_plural = _('alternate names')
 
     def __str__(self):
         #return f'{self.locality.name} ({self.locality.country.code}) = {self.name}'
@@ -867,12 +867,14 @@ class LocalityHierarchy(models.Model):
     parent = models.ForeignKey(
         'Locality',
         related_name = 'is_parent_of',
-        on_delete = models.CASCADE
+        on_delete = models.CASCADE,
+        verbose_name = _('parent locality'),
     )    
     child = models.ForeignKey(
         'Locality',
         related_name = 'has_child',
         on_delete = models.CASCADE,
+        verbose_name = _('child locality'),
     )
     hierarchy_type = models.CharField(
         max_length = 255,
@@ -881,13 +883,13 @@ class LocalityHierarchy(models.Model):
         verbose_name = _('hierarchy type')
     )
     class Meta:
-        #ordering = ['parent',] #'child',]
+        ordering = ['parent__name',] #'child',]
         unique_together = ['parent', 'child', 'hierarchy_type']
         verbose_name = 'geonames hierarchy'
         verbose_name_plural = 'geonames hierarchies'
 
 # TODO:
-# -[    ] Add class ExternalLink for Wikipedia and Wikidata URLs that exist in AlternateName
+# -[Done] Add class ExternalLink for Wikipedia and Wikidata URLs that exist in AlternateName. 
 
 class AlternateNameAsLinkManager(models.Manager):
     def get_queryset(self, *args, **kwargs):
@@ -903,6 +905,9 @@ class AlternateNameAsLAUCManager(models.Manager):
     def get_queryset(self, *args, **kwargs):
         return super().get_queryset(*args, **kwargs).filter(isolanguage__exact='lauc')
 class AlternateNameAsLAUC(AlternateName):
+    """
+    https://ec.europa.eu/eurostat/web/nuts/local-administrative-units
+    """
     objects = AlternateNameAsLAUCManager()
     class Meta:
         proxy = True
