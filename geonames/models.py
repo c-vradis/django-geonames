@@ -945,3 +945,35 @@ class AlternateNameAsNUTS(AlternateName):
         proxy = True
         verbose_name = _('alternate name - NUTS')
         verbose_name_plural = _('alternate names - NUTS')
+
+class ExternalLink(models.Model):
+    """
+    External mappings of Geonames localities.
+    Possible external sources: 
+        Wikidata
+        OpenStreetMap
+        Getty Thesaurus of Geographic Names
+    Wikidata may have links to other sources.
+    """
+    locality_geonames_id = models.ForeignKey(
+        'Locality',
+        on_delete = models.CASCADE,
+        related_name = 'has_external_links',
+        verbose_name = _('geonames locality ID'),
+    )
+    external_source_name = models.CharField(
+        null=True,
+        blank=True,
+        max_length = 255,
+        verbose_name = _('external source name')
+    )
+    external_url = models.URLField(
+        null=False,
+        blank=False,
+        max_length = 1024,
+        verbose_name = _('external URL or URI')
+    )
+    class Meta:
+        ordering = ['external_url',]
+        verbose_name = _('external link')
+        verbose_name_plural = _('external links')

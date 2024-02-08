@@ -115,8 +115,7 @@ class Command(BaseCommand):
         #self.cleanup()
 
         self.load_altnames()
-    
-        self.load_hierarchies()
+        #self.load_hierarchies()
         
         #self.check_errors()
 
