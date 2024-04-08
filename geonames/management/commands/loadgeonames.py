@@ -156,8 +156,7 @@ class Command(BaseCommand):
             pass
 
     def load_continents(self):
-        # TODO:
-        # -[    ] Put this dictionary in an external TSV file. The info comes from this page: https://download.geonames.org/export/dump/
+        # TODO: [    ] Put this dictionary in an external TSV file. The info comes from this page: https://download.geonames.org/export/dump/
         continents = {
             "AF": { "name_en": "Africa", "geonameId": 6255146},
             "AS": { "name_en": "Asia", "geonameId": 6255147},
@@ -176,8 +175,7 @@ class Command(BaseCommand):
     def load_featureclasses(self):
         print('Adding feature classes')
         # The name_en field comes from this page: http://www.geonames.org/statistics/united-states.html (same for all countries)
-        # TODO:
-        # -[    ] Put this dictionary in an external TSV file.
+        # TODO [    ] Put this dictionary in an external TSV file.
         feature_classes = {
             "A": {"name_en": "Administrative Boundary Features", "description_en": "country, state, region,..."},
             "H": {"name_en": "Hydrographic Features", "description_en": "stream, lake, ..."},
@@ -273,8 +271,7 @@ class Command(BaseCommand):
 
         Language.objects.bulk_create(objects)
         print(f'{Timezone.objects.all().count():8d} Languages loaded')
-        # TODO:
-        # -[    ] Do we really need to "fix" the language names? We could add a shorter name for these cases.
+        # TODO: [    ] Do we really need to "fix" the language names? We could add a shorter name for these cases.
         #self.fix_languagecodes()
 
     def fix_languagecodes(self):

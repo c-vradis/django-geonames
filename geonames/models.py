@@ -124,8 +124,7 @@ class Continent(models.Model):
         max_length = 255,
         verbose_name = 'continent name', 
     )
-    # TODO:
-    # -[    ] Add ForeignKey to Locality?
+    # TODO [    ] Add ForeignKey to Locality?
     geonameid = models.PositiveIntegerField()
     def __str__(self):
         return f"{self.name_en} ({self.code})"
@@ -144,8 +143,7 @@ class Timezone(models.Model):
         DST offset 1. Jul 2024
         rawOffset (independant of DST)
     """
-    # TODO:
-    # -[    ] Add ForeignKey to Country
+    # TODO [    ] Add ForeignKey to Country
     class Meta:
         ordering = ['gmt_offset', 'name']
 
@@ -239,8 +237,7 @@ class Country(models.Model):
         neighbours
         EquivalentFipsCode
     """
-    # TODO
-    # -[    ] Add field simplified_boundary with Geometry type (so it can accommodate a Polygon or MultiPolygon geometry)
+    # TODO [    ] Add field simplified_boundary with Geometry type (so it can accommodate a Polygon or MultiPolygon geometry)
     class Meta:
         ordering = ['name']
         verbose_name_plural = 'Countries'
@@ -281,8 +278,7 @@ class Country(models.Model):
         blank=True,
         verbose_name=_('FIPS code'),
         )
-    # TODO:
-    # Add ForeignKey?
+    # TODO: Add ForeignKey?
     capital = models.CharField(
         max_length=255,
         null=True,
@@ -313,8 +309,7 @@ class Country(models.Model):
         blank=True,
         verbose_name=_('Top-level domain'),
         )
-    # TODO:
-    # Add ForeignKey?
+    # TODO Add ForeignKey?
     currency_code = models.CharField(
         max_length=3,
         null=True,
@@ -693,8 +688,7 @@ class AlternateName(models.Model):
     alternatenameid = models.PositiveIntegerField(primary_key=True)
     locality = models.ForeignKey(Locality, related_name="alternatename_set", on_delete=models.CASCADE)
     name = models.CharField(max_length=200, db_index=True)
-    # TODO
-    # -[    ] Add ForeignKey to Language if an ISO code is provided. Alternatively, create a Locale class and add a ForeignKey.
+    # TODO [    ] Add ForeignKey to Language if an ISO code is provided. Alternatively, create a Locale class and add a ForeignKey.
     isolanguage = models.CharField(
         max_length = 10,
         null = True,
@@ -846,8 +840,7 @@ class FeatureClassAndCode(models.Model):
         max_length = 255,
         verbose_name = 'feature code description', 
     )
-    # TODO:
-    # -[    ] Add name fields for languages bg,nb,nn,no,ru,sv
+    # TODO [    ] Add name fields for languages bg,nb,nn,no,ru,sv
     def save(self, *args, **kwargs):
         self.f_class_and_code = str(self)
         super(FeatureClassAndCode, self).save(*args, **kwargs)
@@ -888,8 +881,7 @@ class LocalityHierarchy(models.Model):
         verbose_name = 'geonames hierarchy'
         verbose_name_plural = 'geonames hierarchies'
 
-# TODO:
-# -[Done] Add class ExternalLink for Wikipedia and Wikidata URLs that exist in AlternateName. 
+# TODO [Done] Add class ExternalLink for Wikipedia and Wikidata URLs that exist in AlternateName. 
 
 class AlternateNameAsLinkManager(models.Manager):
     def get_queryset(self, *args, **kwargs):
